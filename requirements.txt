@@ -1,0 +1,33 @@
+# Dependências essenciais para análise de documentos PDF
+# Recomendado (mais moderno e confiável)
+PyMuPDF>=1.23.0
+
+# Alternativa (também boa)
+pdfplumber>=0.8.0
+
+# Último recurso (se as outras não funcionarem)
+# PyPDF2>=3.0.0
+
+# Dependências para análise de páginas web
+requests>=2.28.0
+beautifulsoup4>=4.11.0
+
+# Dependência opcional para integração com ChatGPT
+# (requests já está incluído acima para web scraping)
+
+# Dependências opcionais para funcionalidades avançadas
+# Descomente as linhas abaixo se precisar de funcionalidades específicas
+
+# Para processamento de linguagem natural avançado
+# nltk>=3.8
+
+# Para análise de sentimentos
+# textblob>=0.17.1
+
+# Para visualização de dados
+# matplotlib>=3.6.0
+# seaborn>=0.12.0
+
+# Para exportação de relatórios em diferentes formatos
+# pandas>=1.5.0
+# openpyxl>=3.0.10

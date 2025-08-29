@@ -1,0 +1,40 @@
+{
+  "portugues": [
+    "a", "o", "e", "é", "de", "do", "da", "em", "um", "para", "com", "não", "uma",
+    "os", "no", "se", "na", "por", "mais", "as", "dos", "como", "mas", "foi", "ele", "das",
+    "tem", "à", "seu", "sua", "ou", "ser", "quando", "muito", "há", "nos", "já", "está",
+    "eu", "também", "só", "pelo", "pela", "até", "isso", "ela", "entre", "era", "depois",
+    "sem", "mesmo", "aos", "ter", "seus", "suas", "minha", "têm", "naquele", "neles",
+    "você", "dessa", "nela", "lhe", "deles", "essas", "esses", "pelas", "este", "fosse",
+    "dele", "tu", "te", "vocês", "vos", "lhes", "meus", "minhas", "teu", "tua", "teus",
+    "tuas", "nosso", "nossa", "nossos", "nossas", "dela", "delas", "esta", "estes",
+    "estas", "aquele", "aquela", "aqueles", "aquelas", "isto", "aquilo", "estou",
+    "está", "estamos", "estão", "estive", "esteve", "estivemos", "estiveram",
+    "estava", "estávamos", "estavam", "estivera", "estivéramos", "esteja",
+    "estejamos", "estejam", "estivesse", "estivéssemos", "estivessem",
+    "estiver", "estivermos", "estiverem", "hei", "há", "havemos", "hão",
+    "houve", "houvemos", "houveram", "houvera", "houvéramos", "haja",
+    "hajamos", "hajam", "houvesse", "houvéssemos", "houvessem", "houver",
+    "houvermos", "houverem", "houverei", "houverá", "houveremos",
+    "houverão", "houveria", "houveríamos", "houveriam", "sou", "somos",
+    "são", "era", "éramos", "eram", "fui", "foi", "fomos", "foram",
+    "fora", "fôramos", "seja", "sejamos", "sejam", "fosse", "fôssemos",
+    "fossem", "for", "formos", "forem", "serei", "será", "seremos",
+    "serão", "seria", "seríamos", "seriam", "tenho", "tem", "temos",
+    "têm", "tinha", "tínhamos", "tinham", "tive", "teve", "tivemos",
+    "tiveram", "tivera", "tivéramos", "tenha", "tenhamos", "tenham",
+    "tivesse", "tivéssemos", "tivessem", "tiver", "tivermos", "tiverem",
+    "terei", "terá", "teremos", "terão", "teria", "teríamos", "teriam", "202428"
+  ],
+  "ingles": [
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "he", "in", "is", "it", "its", "of", "on", "that", "the", "to", "was", "will", "with",
+    "i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves",
+    "what", "which", "who", "whom", "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "would", "should", "could", "ought", "i'm", "you're", "he's", "she's", "it's", "we're", "they're", "i've", "you've", "we've", "they've", "i'd", "you'd", "he'd", "she'd", "we'd", "they'd", "i'll", "you'll", "he'll", "she'll", "we'll", "they'll", "isn't", "aren't", "wasn't", "weren't", "hasn't", "haven't", "hadn't", "doesn't", "don't", "didn't", "won't", "wouldn't", "shan't", "shouldn't", "can't", "cannot", "couldn't", "mustn't",
+    "let's", "that's", "who's", "what's", "here's", "there's", "when's", "where's", "why's", "how's", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "against", "among", "between", "into", "through", "during", "before", "after", "above", "below", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "can", "will", "just", "don", "should", "now", "d", "ll", "m", "o", "re", "ve", "y", "ain", "aren", "couldn", "didn", "doesn", "hadn", "hasn", "haven", "isn", "ma", "mightn", "mustn", "needn", "shan", "shouldn", "wasn", "weren", "won", "wouldn",
+    "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can't", "cannot", "could", "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during", "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't", "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", "hers", "herself", "him", "himself", "his", "how", "how's", "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", "isn't", "it", "it's", "its", "itself", "let's", "me", "more", "most", "mustn't", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't", "so", "some", "such", "than", "that", "that's", "the", "their", "theirs", "them", "themselves", "then", "there", "there's", "these", "they", "they'd", "they'll", "they're", "they've", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasn't", "we", "we'd", "we'll", "we're", "we've", "were", "weren't", "what", "what's", "when", "when's", "where", "where's", "which", "while", "who", "who's", "whom", "why", "why's", "with", "won't", "would", "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves", "2025"
+  ],
+  "espanhol": [
+    "a", "al", "ante", "bajo", "con", "contra", "de", "del", "desde", "durante", "en", "entre", "hacia", "hasta", "mediante", "para", "por", "según", "sin", "sobre", "tras",
+    "el", "la", "los", "las", "un", "una", "unos", "unas", "y", "o", "pero", "si", "no", "que", "cual", "quien", "cuyo", "donde", "cuando", "como", "porque", "pues", "ya", "bien", "mal", "muy", "más", "menos", "poco", "mucho", "todo", "nada", "algo", "nadie", "alguien", "cada", "varios", "varias", "este", "esta", "estos", "estas", "ese", "esa", "esos", "esas", "aquel", "aquella", "aquellos", "aquellas", "yo", "tú", "él", "ella", "nosotros", "nosotras", "vosotros", "vosotras", "ellos", "ellas", "me", "te", "le", "nos", "os", "les", "mi", "tu", "su", "nuestro", "nuestra", "vuestro", "vuestra", "suyo", "suya", "suyos", "suyas", "mío", "mía", "míos", "mías", "tuyo", "tuya", "tuyos", "tuyas", "ser", "estar", "haber", "tener", "hacer", "decir", "ir", "ver", "dar", "saber", "poder", "deber", "querer", "llegar", "pasar", "dejar", "llevar", "encontrar", "llamar", "venir", "pensar", "vivir", "sentir", "tratar", "mirar", "esperar", "buscar", "existir", "entrar", "trabajar", "partir", "deber", "producir", "ocurrir", "entender", "pedir", "recibir", "mantener", "explicar", "aparecer", "conocer", "conseguir", "siguiente", "diferente", "posible", "último", "largo", "pequeño", "alto", "bajo", "bueno", "malo", "nuevo", "viejo", "grande", "pequeño", "alto", "bajo", "bueno", "malo", "nuevo", "viejo"
+  ]
+}
