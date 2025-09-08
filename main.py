@@ -252,10 +252,6 @@ class AnalisadorDocumental:
         if self._extrair_metadados_pdfplumber():
             return
         
-        # Tenta com PyPDF2 como último recurso
-        if self._extrair_metadados_pypdf2():
-            return
-        
         logger.info("Nenhuma biblioteca de PDF disponível para extrair metadados")
     
     def _extrair_metadados_pymupdf(self) -> bool:
@@ -342,48 +338,6 @@ class AnalisadorDocumental:
             logger.warning(f"Erro ao extrair metadados com pdfplumber: {e}")
             return False
     
-    def _extrair_metadados_pypdf2(self) -> bool:
-        """
-        Tenta extrair metadados usando PyPDF2 (último recurso).
-        
-        Returns:
-            bool: True se conseguiu extrair, False caso contrário
-        """
-        try:
-            import PyPDF2
-            
-            with open(self.fonte, 'rb') as arquivo:
-                leitor = PyPDF2.PdfReader(arquivo)
-                
-                # Informações básicas
-                self.info_fonte.update({
-                    'total_paginas': len(leitor.pages),
-                    'versao_pdf': leitor.metadata.get('/PDFVersion', 'Desconhecida') if leitor.metadata else 'Desconhecida',
-                    'criptografado': leitor.is_encrypted,
-                })
-                
-                # Metadados
-                if leitor.metadata:
-                    metadados = leitor.metadata
-                    self.info_fonte['metadados'] = {
-                        'titulo': metadados.get('/Title', 'Não informado'),
-                        'autor': metadados.get('/Author', 'Não informado'),
-                        'assunto': metadados.get('/Subject', 'Não informado'),
-                        'criador': metadados.get('/Creator', 'Não informado'),
-                        'produtor': metadados.get('/Producer', 'Não informado'),
-                        'data_criacao': metadados.get('/CreationDate', 'Não informado'),
-                        'data_modificacao_meta': metadados.get('/ModDate', 'Não informado')
-                    }
-                
-                logger.info(f"Metadados PyPDF2 extraídos: {self.info_fonte['total_paginas']} páginas")
-                return True
-                
-        except ImportError:
-            logger.info("PyPDF2 não está instalado")
-            return False
-        except Exception as e:
-            logger.warning(f"Erro ao extrair metadados com PyPDF2: {e}")
-            return False
     
     def _extrair_conteudo(self) -> None:
         """
@@ -590,7 +544,6 @@ class AnalisadorDocumental:
             Para extrair conteúdo real de PDFs, instale uma das bibliotecas:
             - pip install PyMuPDF (recomendado)
             - pip install pdfplumber
-            - pip install PyPDF2 (último recurso)
             """
         else:
             self.conteudo = """
@@ -692,80 +645,7 @@ class AnalisadorDocumental:
         logger.info("Estatísticas gerais calculadas")
         return estatisticas
     
-    def analisar_com_chatgpt(self, prompt: str) -> Optional[str]:
-        """
-        Envia o conteúdo do documento para análise via API da OpenAI ChatGPT.
-        
-        Args:
-            prompt (str): Prompt específico para enviar junto com o conteúdo
-            
-        Returns:
-            Optional[str]: Resposta da API ou None se houver erro
-            
-        Raises:
-            ValueError: Se a API key não estiver configurada
-            ImportError: Se a biblioteca requests não estiver instalada
-        """
-        if not self.api_key:
-            raise ValueError("API key da OpenAI não configurada. Configure OPENAI_API_KEY ou passe no construtor.")
-        
-        # Verifica se requests está disponível
-        try:
-            import requests
-        except ImportError:
-            raise ImportError(
-                "Biblioteca 'requests' não está instalada. "
-                "Para usar a funcionalidade ChatGPT, instale com: pip install requests"
-            )
-        
-        try:
-            # Preparação da requisição para a API da OpenAI
-            url = "https://api.openai.com/v1/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            # Monta o prompt completo com o conteúdo do documento
-            prompt_completo = f"""
-            {prompt}
-            
-            Conteúdo da fonte ({self.tipo_fonte}):
-            {self.conteudo[:4000]}  # Limita a 4000 caracteres para evitar tokens excessivos
-            """
-            
-            data = {
-                "model": "gpt-3.5-turbo",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt_completo
-                    }
-                ],
-                "max_tokens": 1000,
-                "temperature": 0.7
-            }
-            
-            # Faz a requisição para a API
-            response = requests.post(url, headers=headers, json=data, timeout=30)
-            response.raise_for_status()
-            
-            # Extrai a resposta
-            resultado = response.json()
-            resposta = resultado['choices'][0]['message']['content']
-            
-            logger.info("Análise com ChatGPT concluída com sucesso")
-            return resposta
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Erro na requisição para API da OpenAI: {e}")
-            return None
-        except KeyError as e:
-            logger.error(f"Erro ao processar resposta da API: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Erro inesperado na análise com ChatGPT: {e}")
-            return None
+
     
     def gerar_relatorio_completo(self, top_n: int = 25) -> str:
         """
@@ -853,34 +733,576 @@ class AnalisadorDocumental:
         return f"{bytes_size:.1f} TB"
 
 
+class AnalisadorMultiplosDocumentos:
+    """
+    Classe para análise de múltiplos documentos PDF em uma pasta.
+    Realiza análise individual de cada arquivo e gera um ranking geral consolidado.
+    
+    Atributos:
+        pasta (str): Caminho para a pasta contendo os PDFs
+        analisadores (List[AnalisadorDocumental]): Lista de analisadores para cada documento
+        resultados_gerais (Dict): Resultados consolidados de todos os documentos
+    """
+    
+    def __init__(self, pasta: str, api_key: Optional[str] = None, idioma: Optional[str] = None):
+        """
+        Inicializa o analisador de múltiplos documentos.
+        
+        Args:
+            pasta (str): Caminho para a pasta contendo os PDFs
+            api_key (str, optional): Chave da API da OpenAI para análise com ChatGPT
+            idioma (str, optional): Idioma para stop words ('portugues', 'ingles', 'espanhol')
+        """
+        self.pasta = pasta
+        self.api_key = api_key
+        self.idioma = idioma
+        self.analisadores = []
+        self.resultados_gerais = {}
+        
+        # Valida a pasta
+        self._validar_pasta()
+        
+        # Encontra e analisa todos os PDFs
+        self._encontrar_e_analisar_pdfs()
+        
+        # Gera resultados consolidados
+        self._gerar_resultados_consolidados()
+    
+    def _validar_pasta(self) -> None:
+        """
+        Valida se a pasta existe e é acessível.
+        
+        Raises:
+            FileNotFoundError: Se a pasta não existir
+            ValueError: Se o caminho não for uma pasta
+        """
+        if not os.path.exists(self.pasta):
+            raise FileNotFoundError(f"Pasta não encontrada: {self.pasta}")
+        
+        if not os.path.isdir(self.pasta):
+            raise ValueError(f"O caminho não é uma pasta: {self.pasta}")
+        
+        logger.info(f"Pasta validada: {self.pasta}")
+    
+    def _encontrar_pdfs(self) -> List[str]:
+        """
+        Encontra todos os arquivos PDF na pasta especificada.
+        
+        Returns:
+            List[str]: Lista de caminhos completos para os PDFs encontrados
+        """
+        pdfs = []
+        
+        try:
+            for arquivo in os.listdir(self.pasta):
+                if arquivo.lower().endswith('.pdf'):
+                    caminho_completo = os.path.join(self.pasta, arquivo)
+                    pdfs.append(caminho_completo)
+            
+            logger.info(f"Encontrados {len(pdfs)} arquivos PDF na pasta")
+            return pdfs
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar PDFs na pasta: {e}")
+            return []
+    
+    def _encontrar_e_analisar_pdfs(self) -> None:
+        """
+        Encontra todos os PDFs na pasta e cria analisadores para cada um.
+        """
+        pdfs = self._encontrar_pdfs()
+        
+        if not pdfs:
+            logger.warning("Nenhum arquivo PDF encontrado na pasta")
+            return
+        
+        logger.info(f"Iniciando análise de {len(pdfs)} documentos...")
+        
+        for i, pdf in enumerate(pdfs, 1):
+            try:
+                logger.info(f"Analisando documento {i}/{len(pdfs)}: {os.path.basename(pdf)}")
+                analisador = AnalisadorDocumental(pdf, self.api_key, self.idioma)
+                self.analisadores.append(analisador)
+                
+            except Exception as e:
+                logger.error(f"Erro ao analisar {pdf}: {e}")
+                continue
+        
+        logger.info(f"Análise concluída: {len(self.analisadores)} documentos processados com sucesso")
+    
+    def _gerar_resultados_consolidados(self) -> None:
+        """
+        Gera resultados consolidados de todos os documentos analisados.
+        """
+        if not self.analisadores:
+            logger.warning("Nenhum analisador disponível para consolidar resultados")
+            return
+        
+        # Estatísticas gerais
+        total_documentos = len(self.analisadores)
+        total_palavras_geral = 0
+        total_palavras_unicas_geral = 0
+        total_tamanho_conteudo = 0
+        
+        # Ranking consolidado de palavras
+        ranking_consolidado = Counter()
+        
+        # Informações individuais de cada documento
+        documentos_info = []
+        
+        for analisador in self.analisadores:
+            try:
+                # Estatísticas do documento
+                stats = analisador.obter_estatisticas_gerais()
+                info_fonte = analisador.obter_informacoes_fonte()
+                
+                # Acumula estatísticas gerais
+                total_palavras_geral += stats['total_palavras']
+                total_palavras_unicas_geral += stats['palavras_unicas']
+                total_tamanho_conteudo += stats['tamanho_conteudo']
+                
+                # Acumula ranking de palavras
+                ranking_doc = analisador.analisar_frequencia_palavras(top_n=100)
+                for palavra, frequencia in ranking_doc:
+                    ranking_consolidado[palavra] += frequencia
+                
+                # Informações do documento
+                doc_info = {
+                    'nome': info_fonte.get('nome', 'Desconhecido'),
+                    'caminho': info_fonte.get('caminho_completo', 'Desconhecido'),
+                    'total_palavras': stats['total_palavras'],
+                    'palavras_unicas': stats['palavras_unicas'],
+                    'densidade_vocabulario': stats['densidade_vocabulario'],
+                    'tamanho_conteudo': stats['tamanho_conteudo'],
+                    'idioma': stats['idioma_detectado'],
+                    'total_paginas': info_fonte.get('total_paginas', 'Desconhecido'),
+                    'tamanho_arquivo': info_fonte.get('tamanho_bytes', 0)
+                }
+                documentos_info.append(doc_info)
+                
+            except Exception as e:
+                logger.error(f"Erro ao processar estatísticas do documento: {e}")
+                continue
+        
+        # Calcula estatísticas consolidadas
+        densidade_geral = (total_palavras_unicas_geral / total_palavras_geral * 100) if total_palavras_geral > 0 else 0
+        
+        self.resultados_gerais = {
+            'total_documentos': total_documentos,
+            'total_palavras': total_palavras_geral,
+            'total_palavras_unicas': total_palavras_unicas_geral,
+            'densidade_vocabulario_geral': round(densidade_geral, 2),
+            'tamanho_conteudo_total': total_tamanho_conteudo,
+            'ranking_consolidado': ranking_consolidado.most_common(50),
+            'documentos': documentos_info,
+            'pasta_analisada': self.pasta,
+            'data_analise': datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        }
+        
+        logger.info("Resultados consolidados gerados com sucesso")
+    
+    def obter_ranking_geral(self, top_n: int = 20) -> List[Tuple[str, int]]:
+        """
+        Retorna o ranking geral das palavras mais frequentes em todos os documentos.
+        
+        Args:
+            top_n (int): Número de palavras mais frequentes a retornar
+            
+        Returns:
+            List[Tuple[str, int]]: Lista de tuplas (palavra, frequência) ordenada por frequência
+        """
+        if not self.resultados_gerais:
+            return []
+        
+        return self.resultados_gerais['ranking_consolidado'][:top_n]
+    
+    def obter_estatisticas_gerais(self) -> Dict[str, any]:
+        """
+        Retorna estatísticas gerais consolidadas de todos os documentos.
+        
+        Returns:
+            Dict[str, any]: Dicionário com estatísticas consolidadas
+        """
+        if not self.resultados_gerais:
+            return {}
+        
+        return {
+            'total_documentos': self.resultados_gerais['total_documentos'],
+            'total_palavras': self.resultados_gerais['total_palavras'],
+            'total_palavras_unicas': self.resultados_gerais['total_palavras_unicas'],
+            'densidade_vocabulario_geral': self.resultados_gerais['densidade_vocabulario_geral'],
+            'tamanho_conteudo_total': self.resultados_gerais['tamanho_conteudo_total'],
+            'pasta_analisada': self.resultados_gerais['pasta_analisada'],
+            'data_analise': self.resultados_gerais['data_analise']
+        }
+    
+    def obter_documentos_analisados(self) -> List[Dict[str, any]]:
+        """
+        Retorna informações detalhadas de cada documento analisado.
+        
+        Returns:
+            List[Dict[str, any]]: Lista com informações de cada documento
+        """
+        if not self.resultados_gerais:
+            return []
+        
+        return self.resultados_gerais['documentos']
+    
+    def obter_ranking_individual(self, indice_documento: int, top_n: int = 20) -> List[Tuple[str, int]]:
+        """
+        Retorna o ranking de palavras de um documento específico.
+        
+        Args:
+            indice_documento (int): Índice do documento na lista de analisadores (baseado em 0)
+            top_n (int): Número de palavras mais frequentes a retornar
+            
+        Returns:
+            List[Tuple[str, int]]: Lista de tuplas (palavra, frequência) ordenada por frequência
+        """
+        if not self.analisadores or indice_documento >= len(self.analisadores):
+            return []
+        
+        try:
+            analisador = self.analisadores[indice_documento]
+            ranking = analisador.analisar_frequencia_palavras(top_n)
+            return ranking
+        except Exception as e:
+            logger.error(f"Erro ao obter ranking individual do documento {indice_documento}: {e}")
+            return []
+    
+    def _obter_ranking_individual(self, indice_documento: int, top_n: int = 20) -> List[Tuple[str, int]]:
+        """
+        Método interno para obter ranking individual (chama o método público).
+        
+        Args:
+            indice_documento (int): Índice do documento na lista de analisadores
+            top_n (int): Número de palavras mais frequentes a retornar
+            
+        Returns:
+            List[Tuple[str, int]]: Lista de tuplas (palavra, frequência) ordenada por frequência
+        """
+        return self.obter_ranking_individual(indice_documento, top_n)
+    
+    def gerar_relatorio_completo(self, top_n: int = 25) -> str:
+        """
+        Gera um relatório completo com análise de todos os documentos.
+        
+        Args:
+            top_n (int): Número de palavras mais frequentes para incluir no ranking geral
+            
+        Returns:
+            str: Relatório formatado com todas as análises
+        """
+        if not self.resultados_gerais:
+            return "Nenhum documento foi analisado com sucesso."
+        
+        relatorio = []
+        relatorio.append("=" * 100)
+        relatorio.append("RELATÓRIO DE ANÁLISE DOCUMENTAL - MÚLTIPLOS DOCUMENTOS")
+        relatorio.append("=" * 100)
+        
+        # Informações gerais
+        stats = self.obter_estatisticas_gerais()
+        relatorio.append("INFORMAÇÕES GERAIS:")
+        relatorio.append(f"- Pasta analisada: {stats['pasta_analisada']}")
+        relatorio.append(f"- Data da análise: {stats['data_analise']}")
+        relatorio.append(f"- Total de documentos: {stats['total_documentos']}")
+        relatorio.append(f"- Total de palavras: {stats['total_palavras']:,}")
+        relatorio.append(f"- Total de palavras únicas: {stats['total_palavras_unicas']:,}")
+        relatorio.append(f"- Densidade de vocabulário geral: {stats['densidade_vocabulario_geral']}%")
+        relatorio.append(f"- Tamanho total do conteúdo: {stats['tamanho_conteudo_total']:,} caracteres")
+        relatorio.append("")
+        
+        # Ranking geral consolidado
+        relatorio.append(f"RANKING GERAL - TOP {top_n} PALAVRAS MAIS FREQUENTES:")
+        ranking_geral = self.obter_ranking_geral(top_n)
+        for i, (palavra, frequencia) in enumerate(ranking_geral, 1):
+            relatorio.append(f"{i:2d}. {palavra:<25} - {frequencia:5d} ocorrências")
+        
+        relatorio.append("")
+        
+        # Detalhes de cada documento
+        relatorio.append("DETALHES DOS DOCUMENTOS ANALISADOS:")
+        relatorio.append("-" * 100)
+        
+        documentos = self.obter_documentos_analisados()
+        for i, doc in enumerate(documentos, 1):
+            relatorio.append(f"")
+            relatorio.append(f"DOCUMENTO {i}: {doc['nome']}")
+            relatorio.append(f"  - Caminho: {doc['caminho']}")
+            relatorio.append(f"  - Total de palavras: {doc['total_palavras']:,}")
+            relatorio.append(f"  - Palavras únicas: {doc['palavras_unicas']:,}")
+            relatorio.append(f"  - Densidade de vocabulário: {doc['densidade_vocabulario']}%")
+            relatorio.append(f"  - Tamanho do conteúdo: {doc['tamanho_conteudo']:,} caracteres")
+            relatorio.append(f"  - Idioma: {doc['idioma']}")
+            relatorio.append(f"  - Total de páginas: {doc['total_paginas']}")
+            relatorio.append(f"  - Tamanho do arquivo: {self._formatar_tamanho(doc['tamanho_arquivo'])}")
+            
+            # Ranking individual do documento
+            relatorio.append(f"")
+            relatorio.append(f"  TOP 20 PALAVRAS MAIS FREQUENTES (DOCUMENTO {i}):")
+            ranking_individual = self._obter_ranking_individual(i-1, 20)  # i-1 porque é índice baseado em 0
+            if ranking_individual:
+                for j, (palavra, frequencia) in enumerate(ranking_individual, 1):
+                    relatorio.append(f"    {j:2d}. {palavra:<20} - {frequencia:4d} ocorrências")
+            else:
+                relatorio.append(f"    Nenhuma palavra encontrada para este documento.")
+        
+        relatorio.append("")
+        relatorio.append("=" * 100)
+        
+        return "\n".join(relatorio)
+    
+    def _formatar_tamanho(self, bytes_size: int) -> str:
+        """
+        Formata o tamanho em bytes para uma representação legível.
+        
+        Args:
+            bytes_size (int): Tamanho em bytes
+            
+        Returns:
+            str: Tamanho formatado (ex: "1.5 MB")
+        """
+        for unidade in ['B', 'KB', 'MB', 'GB']:
+            if bytes_size < 1024.0:
+                return f"{bytes_size:.1f} {unidade}"
+            bytes_size /= 1024.0
+        return f"{bytes_size:.1f} TB"
+    
+    def verificar_openpyxl_disponivel(self) -> bool:
+        """
+        Verifica se o openpyxl está disponível e funcionando.
+        
+        Returns:
+            bool: True se openpyxl está disponível, False caso contrário
+        """
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+            return True
+        except ImportError:
+            return False
+        except Exception:
+            return False
+    
+    def exportar_relatorio_excel(self, caminho_arquivo: str, top_n_palavras: int = 50) -> bool:
+        """
+        Exporta um relatório completo para Excel com análise de múltiplos documentos.
+        Cada linha representa um documento e as colunas contêm as palavras mais frequentes.
+        
+        Args:
+            caminho_arquivo (str): Caminho completo onde salvar o arquivo Excel
+            top_n_palavras (int): Número de palavras mais frequentes para incluir como colunas
+            
+        Returns:
+            bool: True se a exportação foi bem-sucedida, False caso contrário
+            
+        Raises:
+            ImportError: Se openpyxl não estiver instalado
+            ValueError: Se não houver documentos analisados
+        """
+        # Verifica se openpyxl está disponível
+        if not self.verificar_openpyxl_disponivel():
+            raise ImportError(
+                "openpyxl não está instalado ou há problema com a instalação. "
+                "Execute o script de teste: python test_openpyxl.py "
+                "Ou tente reinstalar: pip uninstall openpyxl && pip install openpyxl"
+            )
+        
+        # Importa openpyxl (já verificado que está disponível)
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        logger.info("openpyxl importado com sucesso")
+        
+        if not self.resultados_gerais or not self.analisadores:
+            raise ValueError("Nenhum documento foi analisado. Execute a análise primeiro.")
+        
+        logger.info(f"Iniciando exportação para Excel: {caminho_arquivo}")
+        
+        # Cria um novo workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Análise Documental"
+        
+        # Estilos para formatação
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        center_alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Obtém todas as palavras únicas mais frequentes de todos os documentos
+        todas_palavras = set()
+        for analisador in self.analisadores:
+            ranking = analisador.analisar_frequencia_palavras(top_n_palavras)
+            for palavra, _ in ranking:
+                todas_palavras.add(palavra)
+        
+        # Ordena as palavras por frequência geral
+        palavras_ordenadas = []
+        ranking_geral = self.obter_ranking_geral(len(todas_palavras))
+        palavras_gerais = {palavra: freq for palavra, freq in ranking_geral}
+        
+        for palavra in todas_palavras:
+            frequencia = palavras_gerais.get(palavra, 0)
+            palavras_ordenadas.append((palavra, frequencia))
+        
+        palavras_ordenadas.sort(key=lambda x: x[1], reverse=True)
+        colunas_palavras = [palavra for palavra, _ in palavras_ordenadas[:top_n_palavras]]
+        
+        # Cabeçalhos das colunas
+        colunas = [
+            "Documento", "Total Palavras", "Palavras Únicas", "Densidade Vocab.", 
+            "Tamanho Conteúdo", "Idioma", "Total Páginas", "Tamanho Arquivo"
+        ] + colunas_palavras
+        
+        # Aplica cabeçalhos
+        for col, header in enumerate(colunas, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_alignment
+            cell.border = border
+        
+        # Preenche os dados de cada documento
+        documentos = self.obter_documentos_analisados()
+        
+        for row, doc in enumerate(documentos, 2):
+            # Informações básicas do documento
+            ws.cell(row=row, column=1, value=doc['nome']).border = border
+            ws.cell(row=row, column=2, value=doc['total_palavras']).border = border
+            ws.cell(row=row, column=3, value=doc['palavras_unicas']).border = border
+            ws.cell(row=row, column=4, value=f"{doc['densidade_vocabulario']}%").border = border
+            ws.cell(row=row, column=5, value=doc['tamanho_conteudo']).border = border
+            ws.cell(row=row, column=6, value=doc['idioma']).border = border
+            ws.cell(row=row, column=7, value=str(doc['total_paginas'])).border = border
+            ws.cell(row=row, column=8, value=self._formatar_tamanho(doc['tamanho_arquivo'])).border = border
+            
+            # Obtém ranking individual do documento
+            indice_doc = row - 2  # Índice baseado em 0
+            ranking_individual = self.obter_ranking_individual(indice_doc, top_n_palavras)
+            palavras_doc = {palavra: freq for palavra, freq in ranking_individual}
+            
+            # Preenche frequências das palavras
+            for col, palavra in enumerate(colunas_palavras, 9):
+                frequencia = palavras_doc.get(palavra, 0)
+                cell = ws.cell(row=row, column=col, value=frequencia)
+                cell.border = border
+                cell.alignment = center_alignment
+        
+        # Ajusta largura das colunas
+        for col in range(1, len(colunas) + 1):
+            column_letter = get_column_letter(col)
+            if col == 1:  # Coluna do nome do documento
+                ws.column_dimensions[column_letter].width = 30
+            elif col <= 8:  # Colunas de informações básicas
+                ws.column_dimensions[column_letter].width = 15
+            else:  # Colunas de palavras
+                ws.column_dimensions[column_letter].width = 12
+        
+        # Adiciona uma segunda aba com resumo geral
+        ws_resumo = wb.create_sheet("Resumo Geral")
+        
+        # Cabeçalho do resumo
+        ws_resumo.cell(row=1, column=1, value="Métrica").font = header_font
+        ws_resumo.cell(row=1, column=2, value="Valor").font = header_font
+        ws_resumo.cell(row=1, column=1).fill = header_fill
+        ws_resumo.cell(row=1, column=2).fill = header_fill
+        ws_resumo.cell(row=1, column=1).border = border
+        ws_resumo.cell(row=1, column=2).border = border
+        
+        # Dados do resumo
+        stats = self.obter_estatisticas_gerais()
+        resumo_dados = [
+            ("Total de Documentos", stats['total_documentos']),
+            ("Total de Palavras", f"{stats['total_palavras']:,}"),
+            ("Total de Palavras Únicas", f"{stats['total_palavras_unicas']:,}"),
+            ("Densidade de Vocabulário Geral", f"{stats['densidade_vocabulario_geral']}%"),
+            ("Tamanho Total do Conteúdo", f"{stats['tamanho_conteudo_total']:,} caracteres"),
+            ("Pasta Analisada", stats['pasta_analisada']),
+            ("Data da Análise", stats['data_analise'])
+        ]
+        
+        for row, (metrica, valor) in enumerate(resumo_dados, 2):
+            ws_resumo.cell(row=row, column=1, value=metrica).border = border
+            ws_resumo.cell(row=row, column=2, value=valor).border = border
+        
+        # Ajusta largura das colunas do resumo
+        ws_resumo.column_dimensions['A'].width = 30
+        ws_resumo.column_dimensions['B'].width = 50
+        
+        # Salva o arquivo
+        wb.save(caminho_arquivo)
+        
+        logger.info(f"Relatório Excel exportado com sucesso: {caminho_arquivo}")
+        logger.info(f"Arquivo contém {len(documentos)} documentos e {len(colunas_palavras)} palavras analisadas")
+        
+        return True
+
+
 def main():
     """
-    Função principal para demonstração do uso da classe AnalisadorDocumental.
+    Função principal para demonstração do uso das classes AnalisadorDocumental e AnalisadorMultiplosDocumentos.
     """
     try:
-        # Exemplo de uso da classe
         print("=== DEMONSTRAÇÃO DO ANALISADOR DOCUMENTAL ===\n")
         
-        # Exemplo 1: Análise de PDF
-        print("--- ANÁLISE DE PDF ---")
-        analisador_pdf = AnalisadorDocumental("C:/Users/matol/Downloads/PBIA - IA_para_o_Bem_de_Todos.pdf")
-        print(analisador_pdf.gerar_relatorio_completo())
+        # Exemplo 1: Análise de PDF individual
+        #print("--- ANÁLISE DE PDF INDIVIDUAL ---")
+        #analisador_pdf = AnalisadorDocumental("C:/Users/matol/Downloads/PBIA - IA_para_o_Bem_de_Todos.pdf")
+        #print(analisador_pdf.gerar_relatorio_completo())
+        
+        #print("\n" + "="*80 + "\n")
+        
+        # Exemplo 2: Análise de múltiplos PDFs em uma pasta
+        print("--- ANÁLISE DE MÚLTIPLOS PDFs ---")
+        pasta_pdfs = "C:/Users/matol/Documents/anpocs2025/corpusdocumental"  # Substitua pelo caminho da sua pasta
+        analisador_multiplos = AnalisadorMultiplosDocumentos(pasta_pdfs)
+        print(analisador_multiplos.gerar_relatorio_completo())
+        
+        # Exemplo 3: Exportação para Excel
+        print("\n--- EXPORTAÇÃO PARA EXCEL ---")
+        try:
+            caminho_excel = "relatorio_analise_documental.xlsx"
+            sucesso = analisador_multiplos.exportar_relatorio_excel(caminho_excel, top_n_palavras=30)
+            if sucesso:
+                print(f"✅ Relatório Excel exportado com sucesso: {caminho_excel}")
+                print("📊 O arquivo contém:")
+                print("   - Aba 'Análise Documental': Cada linha = 1 documento, colunas = palavras mais frequentes")
+                print("   - Aba 'Resumo Geral': Estatísticas consolidadas de todos os documentos")
+            else:
+                print("❌ Erro ao exportar relatório Excel")
+        except ImportError as e:
+            print(f"⚠️  ERRO DE IMPORTAÇÃO: {e}")
+            print("💡 Soluções sugeridas:")
+            print("   1. pip uninstall openpyxl && pip install openpyxl")
+            print("   2. Execute o script de teste: python test_openpyxl.py")
+            print("   3. Verifique se está no ambiente virtual correto")
+        except Exception as e:
+            print(f"❌ Erro na exportação Excel: {e}")
+            print("💡 Execute o script de teste: python test_openpyxl.py")
         
         print("\n" + "="*80 + "\n")
         
-        # Exemplo 2: Análise de página web
-        print("--- ANÁLISE DE PÁGINA WEB ---")
-        analisador_web = AnalisadorDocumental("https://www.softwareimprovementgroup.com/us-ai-legislation-overview/")
-        print(analisador_web.gerar_relatorio_completo())
+        # Exemplo 3: Análise de página web
+        #print("--- ANÁLISE DE PÁGINA WEB ---")
+        #analisador_web = AnalisadorDocumental("https://www.softwareimprovementgroup.com/us-ai-legislation-overview/")
+        #print(analisador_web.gerar_relatorio_completo())
         
-        # Exemplo de análise com ChatGPT (requer API key configurada)
+        # Exemplo de análise consolidada com ChatGPT (requer API key configurada)
         # api_key = "sua_api_key_aqui"  # Configure sua API key
-        # analisador_chatgpt = AnalisadorDocumental("documento_exemplo.pdf", api_key)
+        # analisador_chatgpt = AnalisadorMultiplosDocumentos(pasta_pdfs, api_key)
         # 
-        # prompt = "Analise este documento e identifique os principais tópicos discutidos."
-        # resposta = analisador_chatgpt.analisar_com_chatgpt(prompt)
+        # prompt = "Analise este conjunto de documentos e identifique os principais temas e tendências."
+        # resposta = analisador_chatgpt.analisar_com_chatgpt_geral(prompt)
         # if resposta:
-        #     print("\n=== ANÁLISE COM CHATGPT ===")
+        #     print("\n=== ANÁLISE CONSOLIDADA COM CHATGPT ===")
         #     print(resposta)
         
     except Exception as e:

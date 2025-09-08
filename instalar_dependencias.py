@@ -5,6 +5,7 @@ Script para instalar dependências com diferentes métodos para resolver problem
 import subprocess
 import sys
 import os
+import logging
 
 def instalar_com_metodo_1():
     """Método 1: Instalação com hosts confiáveis"""
